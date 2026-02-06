@@ -55,3 +55,27 @@ func GenerateToken(userID int64, role, email string, publicID uuid.UUID) (string
 }
 
 // TODO: generate refresh token
+
+// GenerateRefreshToken membuat token refresh baru.
+// Refresh token digunakan untuk mendapatkan access token baru tanpa harus login ulang.
+// Masa berlakunya biasanya lebih lama dari access token.
+func GenerateRefreshToken(userID int64) (string, error) {
+	// Ambil secret key dari konfigurasi untuk menandatangani token
+	secret := config.AppConfig.JWTSecret
+
+	// Parse durasi refresh token dari config (misal "720h" atau 30 hari)
+	// _ digunakan untuk mengabaikan error parsing (asumsi config selalu benar)
+	duration, _ := time.ParseDuration(config.AppConfig.JWTRefreshToken)
+
+	// Siapkan claims (payload/data dalam token)
+	claims := jwt.MapClaims{
+		"user_id": userID,                          // Simpan ID user pemilik token
+		"exp":     time.Now().Add(duration).Unix(), // Set waktu kadaluarsa (Unix timestamp)
+	}
+
+	// Buat token baru dengan metode signing HS256 dan claims yang sudah disiapkan
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Tandatangani token menggunakan secret key dan konversi ke string
+	return token.SignedString([]byte(secret))
+}

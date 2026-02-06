@@ -27,6 +27,7 @@ type UserService interface {
 	// Register mendaftarkan user baru ke sistem
 	// Melakukan: validasi email, hash password, set role, simpan ke database
 	Register(user *models.User) error
+	Login(email, password string) (*models.User, error)
 }
 
 // =============================================================================
@@ -146,4 +147,19 @@ func (s *userService) Register(user *models.User) error {
 	// Memanggil repository untuk menyimpan data
 	// Jika berhasil return nil, jika gagal return error
 	return s.repo.Create(user)
+}
+
+func (s *userService) Login(email, password string) (*models.User, error) {
+	// cari user berdasarkan email
+	user, error := s.repo.FindByEmail(email)
+	if error != nil {
+		return nil, errors.New("Invalid Credential")
+	}
+
+	// pengecekan hasPassword dengan password asli
+	if !utils.CheckPasswordHash(password, user.Password) {
+		return nil, errors.New("Invalid Credential")
+	}
+
+	return user, nil
 }

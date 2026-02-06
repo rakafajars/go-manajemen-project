@@ -32,3 +32,10 @@ func HashPassword(password string) (string, error) {
 	// Ubah hasil hash (byte array) kembali ke string, lalu kembalikan.
 	return string(bytes), err
 }
+
+// Pengecekan PAssword yg di hash
+func CheckPasswordHash(password, hash string) bool {
+	// pengecekan password, jika password dan hash cocok maka akan mengembalikan nilai true
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}

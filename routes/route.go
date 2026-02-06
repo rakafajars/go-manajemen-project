@@ -28,5 +28,5 @@ func Setup(app *fiber.App, uc *controllers.UserController) {
 	// URL: /v1/auth/register
 	// Handler: uc.Register (fungsi yang ada di user_controller.go)
 	app.Post("/v1/auth/register", uc.Register)
-
+	app.Post("/v1/auth/login", uc.Login)
 }

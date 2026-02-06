@@ -54,3 +54,45 @@ func (c *UserController) Register(ctx *fiber.Ctx) error {
 	// Yang dikirim sekarang adalah 'userResponse', bukan object 'user' mentah lagi.
 	return utils.Success(ctx, "Registerasi Berhasil", userResponse)
 }
+
+// Login menangani proses autentikasi user
+func (c *UserController) Login(ctx *fiber.Ctx) error {
+	// 1. Definisikan struct sementara untuk menampung input JSON (hanya butuh email & password)
+	var body struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	// 2. Parse body request ke struct 'body'. Jika format JSON salah, return error.
+	if err := ctx.BodyParser(&body); err != nil {
+		return utils.BadRequest(ctx, "Invalid Request", err.Error())
+	}
+
+	// 3. Panggil fungsi Login di layer Service. Logika pengecekan password dan user ada di sana.
+	user, err := c.service.Login(body.Email, body.Password)
+
+	// 4. Jika login gagal (user tidak ketemu atau password salah), kembalikan error Unauthorized (401)
+	if err != nil {
+		return utils.Unauthorized(ctx, "Login Gagal", err.Error())
+	}
+
+	// 5. Jika sukses, buat Token JWT (Access Token) untuk user tersebut
+	token, _ := utils.GenerateToken(user.InternalID, user.Role, user.Email, user.PublicID)
+
+	// 6. Buat juga Refresh Token agar user tidak perlu login berulang kali saat token utama expired
+	refreshToken, _ := utils.GenerateRefreshToken(user.InternalID)
+
+	// 7. Siapkan DTO response agar field sensitif (seperti password) tidak ikut terkirim
+	var userResp models.UserResponse
+	_ = copier.Copy(&userResp, &user)
+
+	// 8. Kirim response sukses:
+	// - token: Access Token (dipakai untuk request API)
+	// - refresh_token: Refresh Token (dipakai untuk perpanjang sesi)
+	// - user: Data user tanpa password
+	return utils.Success(ctx, "Login Succesfuly", fiber.Map{
+		"token":         token,
+		"refresh_token": refreshToken,
+		"user":          userResp,
+	})
+}
