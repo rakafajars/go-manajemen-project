@@ -5,6 +5,7 @@ package seed
 import (
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/rakafajars/go-manajemen-project/config"
 	"github.com/rakafajars/go-manajemen-project/models"
 	"github.com/rakafajars/go-manajemen-project/utils"
@@ -24,6 +25,7 @@ func SeedAdmin() {
 		Email:    "admin@admin.com",
 		Password: password, // Password yang sudah di-hash
 		Role:     "admin",
+		PublicID: uuid.New(),
 	}
 
 	// 3. Simpan ke database menggunakan FirstOrCreate.

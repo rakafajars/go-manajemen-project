@@ -54,7 +54,7 @@ type Config struct {
 // ============================================================================
 // loadEnv membaca file .env dan mengisi variabel AppConfig.
 // Fungsi ini harus dipanggil di awal aplikasi (biasanya di main.go atau init()).
-func loadEnv() {
+func LoadEnv() {
 	// godotenv.Load() membaca file .env di root project.
 	// Isi file .env akan masuk ke environment variables sistem.
 	err := godotenv.Load()
@@ -108,7 +108,7 @@ func getEnv(key string, fallback string) string {
 // ============================================================================
 // connectDB membuat koneksi ke database PostgreSQL menggunakan GORM.
 // Fungsi ini harus dipanggil SETELAH loadEnv() agar AppConfig sudah terisi.
-func connectDB() {
+func ConnectDB() {
 	cfg := AppConfig
 
 	// DSN (Data Source Name) adalah string koneksi ke database.

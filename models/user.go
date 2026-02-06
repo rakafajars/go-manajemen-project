@@ -18,7 +18,7 @@ type User struct {
 	// PublicID: ID unik yang aman untuk ditampilkan ke publik/API.
 	// Menggunakan UUID agar ID tidak berurutan dan sulit ditebak orang lain.
 	// Tag `gorm:"column:public_id"` memaksa nama kolom di DB jadi 'public_id'.
-	PublicID uuid.UUID `json:"public_id" db:"public_id" gorm:"column:public_id"`
+	PublicID uuid.UUID `json:"public_id" db:"public_id"`
 
 	// Name: Nama lengkap pengguna.
 	Name string `json:"name" db:"name"`
@@ -45,4 +45,18 @@ type User struct {
 	// Jika data dihapus, baris di database TIDAK hilang, tapi field ini akan terisi waktu penghapusan.
 	// Tag `json:"-"` berarti field ini TIDAK akan dimunculkan saat data diubah jadi JSON (disembunyikan dari API).
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// UserResponse adalah Struct khusus untuk format respon JSON ke Client (API).
+// Alasan kita buat terpisah dari struct User (di atas) adalah untuk keamanan dan kerapian:
+// 1. Password TIDAK BOLEH dikirim balik ke frontend/client.
+// 2. InternalID (ID database asli) disembunyikan, diganti dengan PublicID (UUID) agar tidak mudah ditebak.
+type UserResponse struct {
+	PublicID  uuid.UUID      `json:"public_id"`
+	Name      string         `json:"name"`
+	Email     string         `json:"email"`
+	Role      string         `json:"role"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-"`
 }
