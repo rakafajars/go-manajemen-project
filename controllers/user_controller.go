@@ -221,3 +221,23 @@ func (c *UserController) UpdateUser(ctx *fiber.Ctx) error {
 
 	return utils.Success(ctx, "Berhasil Update Data", userResp)
 }
+
+func (c *UserController) DeleteUser(ctx *fiber.Ctx) error {
+	// 1. Ambil ID dari URL (misal: /users/5)
+	// Kita gunakan strconv.Atoi karena ID di database bertipe Integer (bukan UUID)
+	// Perhatikan: Endpoint ini menggunakan ID Internal (uint), berbeda dengan Update yang pakai UUID.
+	id, err := strconv.Atoi(ctx.Params("id"))
+
+	if err != nil {
+		return utils.BadRequest(ctx, "Invalid ID Format", err.Error())
+	}
+
+	// 2. Panggil Service Delete
+	// Kita casting int ke uint karena model GORM menggunakan uint
+	if err := c.service.Delete(uint(id)); err != nil {
+		return utils.InternalServerError(ctx, "Gagal Menghapus Data", err.Error())
+	}
+
+	// 3. Return Response Sukses
+	return utils.Success(ctx, "Berhasil Menghapus Data", id)
+}

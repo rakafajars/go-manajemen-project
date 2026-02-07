@@ -69,7 +69,7 @@ type UserRepository interface {
 	FindAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error)
 
 	Update(user *models.User) error
-	Delete(user *models.User) error
+	Delete(id uint) error
 }
 
 // =============================================================================
@@ -313,6 +313,21 @@ func (r *userRepository) Update(user *models.User) error {
 	}).Error
 }
 
-func (r *userRepository) Delete(user *models.User) error {
-	return config.DB.Where("public_id", user.PublicID).Delete(&models.User{}).Error
+// Delete menghapus user berdasarkan ID internal (bukan Public ID).
+//
+// Parameter:
+//   - id: Primary Key dari user yang akan dihapus.
+//
+// Cara kerja (Soft Delete vs Hard Delete):
+//   - GORM secara default melakukan SOFT DELETE jika model memiliki field `DeletedAt`.
+//   - Artinya data TIDAK benar-benar hilang dari database.
+//   - Hanya kolom `deleted_at` yang diisi dengan waktu sekarang.
+//   - Data yang sudah di-soft delete tidak akan muncul di query biasa (Select/Find).
+//   - Untuk melakukan Hard Delete (hapus permanen), gunakan db.Unscoped().Delete(...)
+//
+// Query SQL yang dijalankan:
+//
+//	UPDATE users SET deleted_at = '2023-10-27 10:00:00' WHERE id = [id]
+func (r *userRepository) Delete(id uint) error {
+	return config.DB.Delete(&models.User{}, id).Error
 }

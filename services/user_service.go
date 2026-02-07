@@ -32,6 +32,7 @@ type UserService interface {
 	GetByPublicId(publicID string) (*models.User, error)
 	GetAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error)
 	Update(user *models.User) error
+	Delete(id uint) error
 }
 
 // =============================================================================
@@ -204,4 +205,18 @@ func (s *userService) GetAllPagination(filter, sort string, limit, offset int) (
 // Jadi layer ini menjaga kerapian kode (Separation of Concerns).
 func (s *userService) Update(user *models.User) error {
 	return s.repo.Update(user)
+}
+
+// Delete meneruskan permintaan penghapusan user ke Repository.
+//
+// Layer Service:
+// Di masa depan, di sinilah kita akan menaruh pengecekan hak akses (Authorization).
+// Contoh:
+//
+//	currentUser := ctx.Locals("user").(*models.User)
+//	if currentUser.Role != "ADMIN" {
+//	    return errors.New("hanya admin yang boleh menghapus user")
+//	}
+func (s *userService) Delete(id uint) error {
+	return s.repo.Delete(id)
 }
