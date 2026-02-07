@@ -4,6 +4,8 @@
 package repositories
 
 import (
+	"strings"
+
 	"github.com/rakafajars/go-manajemen-project/config"
 	"github.com/rakafajars/go-manajemen-project/models"
 )
@@ -33,6 +35,41 @@ type UserRepository interface {
 	// Return: pointer ke models.User dan error
 	// Jika user tidak ditemukan, akan return error "record not found"
 	FindByEmail(email string) (*models.User, error)
+
+	// FindByID mencari user berdasarkan ID (primary key).
+	//
+	// Parameter:
+	//   - id: uint (unsigned integer) ID user yang dicari.
+	//
+	// Return:
+	//   - *models.User: Pointer ke data user yang ditemukan.
+	//   - error: Error object (nil jika sukses, berisi error jika gagal, misal record not found).
+	//
+	// Cara kerja:
+	//   - config.DB.First(&user, id):
+	//     Ini adalah shorthand GORM untuk mencari record berdasarkan Primary Key.
+	//     Sama dengan query SQL: SELECT * FROM users WHERE id = [id] ORDER BY id LIMIT 1
+	FindByID(id uint) (*models.User, error)
+
+	// FindByPublicID mencari user berdasarkan Public ID (bukan primary key).
+	//
+	// Parameter:
+	//   - publicID: string Public ID user yang dicari.
+	//
+	// Return:
+	//   - *models.User: Pointer ke data user yang ditemukan.
+	//   - error: Error object (nil jika sukses, berisi error jika gagal, misal record not found).
+	//
+	// Cara kerja:
+	//   - config.DB.Where("public_id = ?", publicID):
+	//     Membuat query SQL: SELECT * FROM users WHERE public_id = [publicID] ORDER BY id LIMIT 1
+	//   - First(&user): Mengambil record pertama yang cocok dan menyimpannya ke variabel 'user'.
+	FindByPublicID(publicID string) (*models.User, error)
+
+	FindAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error)
+
+	Update(user *models.User) error
+	Delete(user *models.User) error
 }
 
 // =============================================================================
@@ -135,4 +172,147 @@ func (r *userRepository) FindByEmail(email string) (*models.User, error) {
 	var user models.User
 	err := config.DB.Where("email = ?", email).First(&user).Error
 	return &user, err
+}
+
+// FindByID mencari user berdasarkan ID (primary key).
+//
+// Parameter:
+//   - id: uint (unsigned integer) ID user yang dicari.
+//
+// Return:
+//   - *models.User: Pointer ke data user yang ditemukan.
+//   - error: Error object (nil jika sukses, berisi error jika gagal, misal record not found).
+//
+// Cara kerja:
+//   - config.DB.First(&user, id):
+//     Ini adalah shorthand GORM untuk mencari record berdasarkan Primary Key.
+//     Sama dengan query SQL: SELECT * FROM users WHERE id = [id] ORDER BY id LIMIT 1
+func (r *userRepository) FindByID(id uint) (*models.User, error) {
+	var user models.User
+
+	// First(&user, id) otomatis mencari berdasarkan primary key karena argument kedua adalah integer/string ID.
+	// Hasil query akan dimasukkan ke variabel 'user' (pass by reference).
+	err := config.DB.First(&user, id).Error
+
+	return &user, err
+}
+
+// FindByPublicID mencari user berdasarkan Public ID (bukan primary key).
+//
+// Parameter:
+//   - publicID: string Public ID user yang dicari.
+//
+// Return:
+//   - *models.User: Pointer ke data user yang ditemukan.
+//   - error: Error object (nil jika sukses, berisi error jika gagal, misal record not found).
+//
+// Cara kerja:
+//   - config.DB.Where("public_id = ?", publicID):
+//     Membuat query SQL: SELECT * FROM users WHERE public_id = [publicID] ORDER BY id LIMIT 1
+//   - First(&user): Mengambil record pertama yang cocok dan menyimpannya ke variabel 'user'.
+func (r *userRepository) FindByPublicID(publicID string) (*models.User, error) {
+	var user models.User
+
+	err := config.DB.Where("public_id = ?", publicID).First(&user).Error
+
+	return &user, err
+}
+
+// FindAllPagination mengambil daftar user dengan fitur Filtering, Sorting, dan Pagination.
+//
+// Parameter:
+//   - filter: Keyword pencarian (nama atau email).
+//   - sort: Format sorting (contoh: "name" untuk ASC, "-name" untuk DESC).
+//   - limit: Jumlah data per halaman.
+//   - offset: Jumlah data yang dilewati (untuk paging).
+//
+// Return:
+//   - []models.User: List user yang ditemukan.
+//   - int64: Total data (untuk kalkulasi total pages di frontend).
+//   - error: Error jika ada.
+func (r *userRepository) FindAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	// Inisialisasi query builder GORM
+	db := config.DB.Model(&models.User{})
+
+	// =========================================================================
+	// 1. FILTERING (Pencarian)
+	// =========================================================================
+	if filter != "" {
+		// Gunakan wildcard '%' untuk pencarian parsial
+		// Gunakan ILIKE (Case Insensitive LIKE) agar huruf besar/kecil dianggap sama
+		// Contoh: filter "eri" akan mencocokkan "Eri", "ERI", "eRi", dll
+		// ILIKE adalah fitur spesifik PostgreSQL
+		filterPattern := "%" + filter + "%"
+		db = db.Where("name ILIKE ? OR email ILIKE ?", filterPattern, filterPattern)
+	}
+
+	// =========================================================================
+	// 2. COUNTING (Hitung Total Data)
+	// =========================================================================
+	// Hitung total data SEBELUM limit & offset diterapkan.
+	// Penting untuk frontend tahu berapa total halaman yang tersedia.
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// =========================================================================
+	// 3. SORTING (Pengurutan)
+	// =========================================================================
+	if sort != "" {
+		// Mapping khusus: jika user kirim "id", kita map ke "internal_id" (nama kolom DB)
+		switch sort {
+		case "-id":
+			sort = "-internal_id"
+		case "id":
+			sort = "internal_id"
+		}
+
+		// Logic detect Ascending/Descending
+		// Jika diawali "-", berarti DESC (Descending/Menurun)
+		// Contoh: "-name" -> "name DESC"
+		if strings.HasPrefix(sort, "-") {
+			sort = strings.TrimPrefix(sort, "-") + " DESC"
+		} else {
+			// Jika tidak ada "-", berarti ASC (Ascending/Naik)
+			sort = sort + " ASC"
+		}
+
+		// Aplikasikan sorting ke query
+		db = db.Order(sort)
+	}
+
+	// =========================================================================
+	// 4. PAGINATION & EXECUTION
+	// =========================================================================
+	// Limit: Berapa banyak data yang diambil
+	// Offset: Berapa banyak data yang dilewati
+	// Find: Eksekusi query final
+	err := db.Limit(limit).Offset(offset).Find(&users).Error
+
+	return users, total, err
+
+}
+
+// Update memperbarui data user yang sudah ada.
+//
+// Parameter:
+//   - user: Pointer ke struct user yang berisi data baru.
+//
+// Cara kerja:
+//   - db.Model(&models.User{}): Memberitahu GORM tabel mana yang akan diupdate.
+//   - .Where("public_id = ?", user.PublicID): Filter user mana yang akan diupdate.
+//   - .Updates(map[string]interface{...}): Melakukan update HANYA pada kolom yang ditentukan di dalam map.
+//     Kenapa pakai map? Agar kita bisa memilih secara spesifik kolom apa saja yang mau diubah (SELECTIVE UPDATE).
+//     Jika pakai struct, GORM akan mengabaikan field yang kosong, dan kita tidak punya kontrol penuh.
+func (r *userRepository) Update(user *models.User) error {
+	return config.DB.Model(&models.User{}).Where("public_id = ?", user.PublicID).Updates(map[string]any{
+		"name": user.Name, // Hanya kolom 'name' yang diupdate, kolom lain (email, password) aman.
+	}).Error
+}
+
+func (r *userRepository) Delete(user *models.User) error {
+	return config.DB.Where("public_id", user.PublicID).Delete(&models.User{}).Error
 }

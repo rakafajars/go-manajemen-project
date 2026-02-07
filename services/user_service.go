@@ -28,6 +28,10 @@ type UserService interface {
 	// Melakukan: validasi email, hash password, set role, simpan ke database
 	Register(user *models.User) error
 	Login(email, password string) (*models.User, error)
+	GetById(id uint) (*models.User, error)
+	GetByPublicId(publicID string) (*models.User, error)
+	GetAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error)
+	Update(user *models.User) error
 }
 
 // =============================================================================
@@ -162,4 +166,42 @@ func (s *userService) Login(email, password string) (*models.User, error) {
 	}
 
 	return user, nil
+}
+
+// GetById mengambil data user berdasarkan Internal ID (Primary Key).
+// Fungsi ini hanya meneruskan request dari Controller ke Repository.
+// Digunakan ketika kita butuh data user yang spesifik dan kita tahu ID-nya (misal dari claims token).
+func (s *userService) GetById(id uint) (*models.User, error) {
+	// Panggil repository untuk query database by ID
+	return s.repo.FindByID(id)
+}
+
+// GetByPublicId mengambil data user berdasarkan Public ID (UUID).
+// Fungsi ini menjembatani Controller dan Repository.
+// Digunakan ketika client request data menggunakan Public ID (misal di URL: /users/:id).
+func (s *userService) GetByPublicId(publicID string) (*models.User, error) {
+	// Panggil repository untuk query database by Public ID
+	return s.repo.FindByPublicID(publicID)
+}
+
+// FindAllPagination mengambil list user dengan paginasi.
+// Service disini bertindak sebagai pass-through:
+// Menerima parameter dari Controller -> Meneruskan ke Repository.
+// Filter, Sort, Limit, dan Offset diteruskan tanpa ubahan karena logika query ada di Repository.
+func (s *userService) GetAllPagination(filter, sort string, limit, offset int) ([]models.User, int64, error) {
+	return s.repo.FindAllPagination(filter, sort, limit, offset)
+}
+
+// Update meneruskan permintaan update dari Controller ke Repository.
+//
+// Kenapa butuh layer ini kalau isinya cuma return?
+// Layer Service adalah tempat menaruh LOGIKA BISNIS yang tidak boleh ada di Controller atau Repository.
+// Contoh logika bisnis di masa depan:
+// 1. Validasi: Cek apakah nama mengandung kata-kata kasar sebelum disimpan?
+// 2. Audit Log: Mencatat "Siapa yang mengubah data ini dan kapan?"
+// 3. Notifikasi: Mengirim email "Profil Anda telah berubah" ke user.
+//
+// Jadi layer ini menjaga kerapian kode (Separation of Concerns).
+func (s *userService) Update(user *models.User) error {
+	return s.repo.Update(user)
 }
