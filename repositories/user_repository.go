@@ -8,6 +8,7 @@ import (
 
 	"github.com/rakafajars/go-manajemen-project/config"
 	"github.com/rakafajars/go-manajemen-project/models"
+	"gorm.io/gorm"
 )
 
 // =============================================================================
@@ -329,5 +330,21 @@ func (r *userRepository) Update(user *models.User) error {
 //
 //	UPDATE users SET deleted_at = '2023-10-27 10:00:00' WHERE id = [id]
 func (r *userRepository) Delete(id uint) error {
-	return config.DB.Delete(&models.User{}, id).Error
+	// Debugging: Cek dulu apakah ID ada? (Opsional, tapi bagus untuk memastikan)
+	// Kita bisa langsung delete, lalu cek RowsAffected.
+
+	// Eksekusi Query DELETE
+	result := config.DB.Where("internal_id = ?", id).Delete(&models.User{})
+
+	// Cek error database (koneksi putus, sintaks salah, dll)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Cek apakah ada baris yang terhapus?
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound // Return error standar GORM "record not found"
+	}
+
+	return nil
 }

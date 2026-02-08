@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"math"
 	"strconv"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/rakafajars/go-manajemen-project/models"
 	"github.com/rakafajars/go-manajemen-project/services"
 	"github.com/rakafajars/go-manajemen-project/utils"
+	"gorm.io/gorm"
 )
 
 // UserController struct bertanggung jawab untuk menangani request yang masuk (Handler).
@@ -234,7 +236,13 @@ func (c *UserController) DeleteUser(ctx *fiber.Ctx) error {
 
 	// 2. Panggil Service Delete
 	// Kita casting int ke uint karena model GORM menggunakan uint
-	if err := c.service.Delete(uint(id)); err != nil {
+	err = c.service.Delete(uint(id))
+	if err != nil {
+		// Cek apakah errornya karena data tidak ditemukan?
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.NotFound(ctx, "User tidak ditemukan", err.Error())
+		}
+		// Error lain (misal koneksi DB putus)
 		return utils.InternalServerError(ctx, "Gagal Menghapus Data", err.Error())
 	}
 

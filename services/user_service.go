@@ -218,5 +218,7 @@ func (s *userService) Update(user *models.User) error {
 //	    return errors.New("hanya admin yang boleh menghapus user")
 //	}
 func (s *userService) Delete(id uint) error {
+	// Langsung panggil repository.
+	// Jika ID tidak ada, repository akan mengembalikan error "record not found".
 	return s.repo.Delete(id)
 }

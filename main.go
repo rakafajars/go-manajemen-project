@@ -42,10 +42,15 @@ func main() {
 	// c. Buat Controller (Layer interface), butuh Service
 	userController := controllers.NewUserController(userService)
 
+	// Board
+	boardRepo := repositories.NewBoardRepository()
+	boardService := services.NewBoardService(boardRepo, userRepo)
+	boardController := controllers.NewBoardController(boardService)
+
 	// 5. Setup Routes
 	// Mendaftarkan URL (endpoint) ke Controller yang sesuai.
 	// Kita passing 'app' dan 'userController' agar route bisa menghubungkan URL ke fungsi di controller.
-	routes.Setup(app, userController)
+	routes.Setup(app, userController, boardController)
 
 	// 6. Jalankan Server
 	// Mengambil PORT dari konfigurasi (misal "8080")

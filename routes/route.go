@@ -16,7 +16,7 @@ import (
 // Parameter:
 // - app: instance dari Fiber App yang dibuat di main.go
 // - uc: instance dari UserController yang sudah diinjeksi service
-func Setup(app *fiber.App, uc *controllers.UserController) {
+func Setup(app *fiber.App, uc *controllers.UserController, bc *controllers.BoardController) {
 	// Memuat variabel environment dari file .env (misal: DB_PASSWORD, PORT, dll)
 	// Catatan: Biasanya ini dipanggil sekali saja di main.go, tapi tidak apa-apa di sini untuk belajar.
 	err := godotenv.Load()
@@ -68,4 +68,7 @@ func Setup(app *fiber.App, uc *controllers.UserController) {
 	userGroup.Get("/:id", uc.GetUser)
 	userGroup.Put("/:id", uc.UpdateUser)
 	userGroup.Delete("/:id", uc.DeleteUser)
+
+	boardGroup := api.Group("/boards")
+	boardGroup.Post("/", bc.CreateBoard)
 }
