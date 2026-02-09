@@ -60,3 +60,68 @@ func (c *BoardController) CreateBoard(ctx *fiber.Ctx) error {
 	// 5. Response Sukses: Jika berhasil, kembalikan response 200/201 dengan data board yang baru dibuat.
 	return utils.Success(ctx, "Board berhasil dibuat", board)
 }
+
+// UpdateBoard menangani request untuk mengubah data board.
+func (c *BoardController) UpdateBoard(ctx *fiber.Ctx) error {
+	// 1. Ambil ID dari URL (misal: /boards/:id)
+	publicID := ctx.Params("id")
+	board := new(models.Board)
+
+	// 2. Parse Body: Ubah JSON dari request body menjadi struct Board.
+	if err := ctx.BodyParser(board); err != nil {
+		return utils.BadRequest(ctx, "Gagal parsing data", err.Error())
+	}
+
+	// 3. Validasi UUID: Pastikan ID yang dikirim formatnya benar.
+	if _, err := uuid.Parse(publicID); err != nil {
+		return utils.BadRequest(ctx, "ID tidak valid", err.Error())
+	}
+
+	// 4. Cek Keberadaan Data: Pastikan board yang mau diedit benar-benar ada.
+	existingBoard, err := c.service.GetByPublicID(publicID) // Menggunakan method baru di service
+	if err != nil {
+		return utils.NotFound(ctx, "Board tidak ditemukan", err.Error())
+	}
+
+	// 5. Set ID Internal: Kita harus memastikan board yang diupdate adalah board yang sama.
+	// Kita ambil internal_id dan public_id dari data lama (existingBoard) dan pasang ke object baru (board).
+	// Ini penting agar GORM tahu record mana yang harus diupdate (berdasarkan primary key / unique key).
+	board.InternalID = existingBoard.InternalID
+	board.PublicID = existingBoard.PublicID
+	board.OwnerPublicID = existingBoard.OwnerPublicID
+	board.OwnerID = existingBoard.OwnerID
+	board.CreatedAt = existingBoard.CreatedAt
+
+	// 6. Panggil Service Update: Lakukan proses penyimpanan perubahan ke database.
+	if err = c.service.UpdateBoard(board); err != nil {
+		return utils.BadRequest(ctx, "Gagal update board", err.Error())
+	}
+
+	// 7. Berikan Response Sukses ke client.
+	return utils.Success(ctx, "Board berhasil diupdate", board)
+}
+
+// AddBoardMembers menangani endpoint POST /boards/:id/members untuk menambahkan anggota.
+func (c *BoardController) AddBoardMembers(ctx *fiber.Ctx) error {
+	// 1. Ambil ID Board dari URL Parameter (misal: /boards/:id/members)
+	publicID := ctx.Params("id")
+
+	// 2. Siapkan variabel untuk menampung list ID User yang akan ditambahkan.
+	// Kita mengharapkan format JSON body berupa array of strings: ["user_id_1", "user_id_2"]
+	var userIDs []string
+
+	// 3. Parsing Body Request: Mengubah JSON body menjadi slice string.
+	// Jika format JSON tidak sesuai (bukan array string), return error 400.
+	if err := ctx.BodyParser(&userIDs); err != nil {
+		return utils.BadRequest(ctx, "Gagal Parsing Data", err.Error())
+	}
+
+	// 4. Panggil Service: Jalankan logic penambahan member di layer service.
+	// Service akan memvalidasi apakah board dan user valid, serta memastikan tidak ada duplikasi.
+	if err := c.service.AddMembers(publicID, userIDs); err != nil {
+		return utils.BadRequest(ctx, "Gagal Menambahkan Member", err.Error())
+	}
+
+	// 5. Response Sukses: Kembalikan status 200 OK jika berhasil.
+	return utils.Success(ctx, "Berhasil Menambahkan Member ke Board", nil)
+}
