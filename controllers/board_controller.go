@@ -125,3 +125,28 @@ func (c *BoardController) AddBoardMembers(ctx *fiber.Ctx) error {
 	// 5. Response Sukses: Kembalikan status 200 OK jika berhasil.
 	return utils.Success(ctx, "Berhasil Menambahkan Member ke Board", nil)
 }
+
+// RemoveBoardMembers menangani endpoint DELETE /boards/:id/members untuk menghapus anggota.
+func (c *BoardController) RemoveBoardMembers(ctx *fiber.Ctx) error {
+	// 1. Ambil ID Board dari URL Parameter (misal: /boards/:id/members)
+	publicID := ctx.Params("id")
+
+	// 2. Siapkan variabel untuk menampung list ID User yang akan DIHAPUS.
+	// Kita mengharapkan format JSON body berupa array of strings: ["user_id_1", "user_id_2"]
+	var userIDs []string
+
+	// 3. Parsing Body Request: Mengubah JSON body menjadi slice string.
+	// Jika format JSON tidak sesuai (bukan array string), return error 400.
+	if err := ctx.BodyParser(&userIDs); err != nil {
+		return utils.BadRequest(ctx, "Gagal Parsing Data", err.Error())
+	}
+
+	// 4. Panggil Service: Jalankan logic PENGHAPUSAN member di layer service.
+	// Service akan memvalidasi data dan menghapus member yang sesuai.
+	if err := c.service.RemoveMembers(publicID, userIDs); err != nil {
+		return utils.BadRequest(ctx, "Gagal Menghapus Member", err.Error())
+	}
+
+	// 5. Response Sukses: Kembalikan status 200 OK jika berhasil.
+	return utils.Success(ctx, "Berhasil Menghapus Member dari Board", nil)
+}

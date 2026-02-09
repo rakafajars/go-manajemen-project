@@ -19,6 +19,7 @@ type BoardService interface {
 	// GetByPublicID mengambil data board berdasarkan ID publiknya.
 	GetByPublicID(publicID string) (*models.Board, error)
 	AddMembers(boardPublicID string, userPublicIDS []string) error
+	RemoveMembers(boardPublicID string, userPublicIDs []string) error
 }
 
 type boardService struct {
@@ -122,5 +123,52 @@ func (s *boardService) AddMembers(boardPublicID string, userPublicIDS []string) 
 
 	// 7. Simpan ke Database: Panggil repository untuk INSERT anggota-anggota baru tersebut.
 	return s.boardRepo.AddMember(uint(board.InternalID), newMembersIDs)
+
+}
+
+// RemoveMembers menghapus user dari keanggotaan board.
+// Logikanya mirip dengan AddMembers, tapi tujuannya membuang user dari list anggota.
+func (s *boardService) RemoveMembers(boardPublicID string, userPublicIDs []string) error {
+	// 1. Validasi Board: Pastikan board ada.
+	board, err := s.boardRepo.FindByPublicID(boardPublicID)
+	if err != nil {
+		return errors.New("board not found")
+	}
+
+	// 2. Validasi User: Loop semua user ID yang dikirim untuk mendapatkan Internal ID.
+	var userInternalIDs []uint
+	for _, userPublicID := range userPublicIDs {
+		user, err := s.userRepo.FindByPublicID(userPublicID)
+		if err != nil {
+			return errors.New("user not found: " + userPublicID)
+		}
+
+		userInternalIDs = append(userInternalIDs, uint(user.InternalID))
+	}
+
+	// 3. Cek Keanggotaan Saat Ini: Ambil daftar anggota yang ada di board.
+	existingsMembers, err := s.boardMemberRepo.GetMembers(string(board.PublicID.String()))
+	if err != nil {
+		return err
+	}
+
+	// 4. Buat Map Anggota: Agar pengecekan lebih efisien.
+	memberMap := make(map[uint]bool)
+	for _, member := range existingsMembers {
+		memberMap[uint(member.InternalID)] = true
+	}
+
+	// 5. Filter User yang Akan Dihapus:
+	// Hanya hapus user yang *benar-benar* merupakan anggota board saat ini.
+	// Jika user tidak ada di board, kita abaikan saja (idempotent).
+	var membersToRemove []uint
+	for _, userID := range userInternalIDs {
+		if memberMap[userID] {
+			membersToRemove = append(membersToRemove, userID)
+		}
+	}
+
+	// 6. Eksekusi Hapus: Panggil repository untuk menghapus data.
+	return s.boardRepo.RemoveMembers(uint(board.InternalID), membersToRemove)
 
 }

@@ -17,6 +17,7 @@ type BoardRepository interface {
 	Update(board *models.Board) error
 	FindByPublicID(publicID string) (*models.Board, error)
 	AddMember(boardID uint, userIDs []uint) error
+	RemoveMembers(boardID uint, userIDs []uint) error
 }
 
 // boardRepository adalah struktur (struct) konkret yang mengimplementasikan interface BoardRepository.
@@ -95,4 +96,18 @@ func (r *boardRepository) AddMember(boardID uint, userIDs []uint) error {
 	// dia akan otomatis membuat query "INSERT INTO ... VALUES (...), (...), (...)"
 	// Jadi hanya butuh 1 kali trip ke database untuk menyimpan banyak data sekaligus.
 	return config.DB.Create(&members).Error
+}
+
+// RemoveMembers menghapus anggota dari board.
+// Menerima boardID dan list userIDs yang akan dihapus.
+func (r *boardRepository) RemoveMembers(boardID uint, userIDs []uint) error {
+	// 1. Cek Kosong: Jika list userIDs kosong, tidak perlu melakukan apa-apa.
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	// 2. Hapus Data: Melakukan query DELETE untuk menghapus baris di tabel 'board_members'.
+	//    Where: board_internal_id = ? AND user_internal_id IN (?)
+	//    Ini akan menghapus semua record yang cocok dalam satu kali query.
+	return config.DB.Where("board_internal_id = ? AND user_internal_id IN (?)", boardID, userIDs).Delete(&models.BoardMember{}).Error
 }
