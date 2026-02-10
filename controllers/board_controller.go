@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"math"
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -149,4 +152,47 @@ func (c *BoardController) RemoveBoardMembers(ctx *fiber.Ctx) error {
 
 	// 5. Response Sukses: Kembalikan status 200 OK jika berhasil.
 	return utils.Success(ctx, "Berhasil Menghapus Member dari Board", nil)
+}
+
+// GetMyBoardPaginate mengambil data board milik user yang sedang login dengan paginasi.
+// Endpoint: GET /boards
+func (c *BoardController) GetMyBoardPaginate(ctx *fiber.Ctx) error {
+	// 1. Ambil User ID dari Token JWT
+	//    User ID ini digunakan untuk memfilter board mana saja yang boleh dilihat (milik sendiri/member).
+	user := ctx.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userID := claims["public_id"].(string)
+
+	// 2. Parsing Parameter Paging (Query Param)
+	//    ?page=1&limit=10. Jika tidak ada, gunakan default (page 1, limit 10).
+	page, _ := strconv.Atoi(ctx.Query("page", "1"))
+	limit, _ := strconv.Atoi(ctx.Query("limit", "10"))
+	offset := (page - 1) * limit // Hitung offset untuk database query
+
+	// 3. Parsing Filter dan Sorting
+	//    ?filter=judul&sort=created_at desc
+	filter := ctx.Query("filter", "")
+	sort := ctx.Query("sort", "")
+
+	// 4. Panggil Service
+	//    Ambil data board dan total count dari service.
+	boards, total, err := c.service.GetAllByUserPaginate(userID, filter, sort, limit, offset)
+	if err != nil {
+		return utils.InternalServerError(ctx, "Gagal Mengambil Data Board", err.Error())
+	}
+
+	// 5. Susun Metadata Paginasi
+	//    Informasi ini berguna buat frontend untuk membuat navigasi halaman (Next/Prev).
+	meta := utils.PaginationMeta{
+		Page:      page,
+		Limit:     limit,
+		Total:     int(total),
+		TotalPage: int(math.Ceil(float64(total) / float64(limit))), // Hitung total halaman
+		Filter:    filter,
+		Sort:      sort,
+	}
+
+	// 6. Response Sukses dengan Data Pagination
+	return utils.SuccessPagination(ctx, "Data Board Berhasil Diambil", boards, meta)
+
 }

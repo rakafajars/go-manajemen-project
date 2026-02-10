@@ -18,6 +18,7 @@ type BoardRepository interface {
 	FindByPublicID(publicID string) (*models.Board, error)
 	AddMember(boardID uint, userIDs []uint) error
 	RemoveMembers(boardID uint, userIDs []uint) error
+	FindAllByUserPaginate(userPublicID, filter, sort string, limit, offset int) ([]models.Board, int64, error)
 }
 
 // boardRepository adalah struktur (struct) konkret yang mengimplementasikan interface BoardRepository.
@@ -110,4 +111,50 @@ func (r *boardRepository) RemoveMembers(boardID uint, userIDs []uint) error {
 	//    Where: board_internal_id = ? AND user_internal_id IN (?)
 	//    Ini akan menghapus semua record yang cocok dalam satu kali query.
 	return config.DB.Where("board_internal_id = ? AND user_internal_id IN (?)", boardID, userIDs).Delete(&models.BoardMember{}).Error
+}
+
+// FindAllByUserPaginate mengambil daftar board milik user (sebagai owner maupun member), dengan fitur paging, filter, dan sorting.
+func (r *boardRepository) FindAllByUserPaginate(userPublicID, filter, sort string, limit, offset int) ([]models.Board, int64, error) {
+	var board []models.Board
+	var total int64
+
+	// 1. Definisikan Query Dasar:
+	//    Kita ingin mengambil board dimana user adalah OWNER ATAU user adalah MEMBER.
+	//    Subquery: SELECT ... FROM board_members JOIN users ...
+	//    Bagian ini mencari semua board_internal_id dimana user tersebut terdaftar sebagai member.
+	//    Perbaikan SQL: Menambahkan spasi yang hilang pada string concatenation dan memperbaiki "user.public_id" menjadi "users.public_id".
+	query := config.DB.Model(&models.Board{}).
+		Where("owner_public_id = ? OR internal_id IN ("+
+			"SELECT board_members.board_internal_id FROM board_members "+
+			"JOIN users ON users.internal_id = board_members.user_internal_id "+
+			"WHERE users.public_id = ?)", userPublicID, userPublicID)
+
+	// 2. Filter (Pencarian): Jika ada parameter 'filter', tambahkan kondisi WHERE.
+	//    Menggunakan ILIKE untuk pencarian case-insensitive pada judul board.
+	if filter != "" {
+		query = query.Where("title ILIKE ?", "%"+filter+"%")
+	}
+
+	// 3. Hitung Total Data (Counting): Hitung jumlah data SEBELUM dipotong limit/offset.
+	//    Ini penting untuk frontend agar tahu total halaman (pagination).
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 4. Sorting (Pengurutan): Jika ada parameter 'sort', gunakan itu.
+	//    Default: Urutkan berdasarkan waktu pembuatan terbaru (created_at desc).
+	if sort != "" {
+		query = query.Order(sort)
+	} else {
+		query = query.Order("created_at desc")
+	}
+
+	// 5. Pagination (Limit & Offset) & Eksekusi:
+	//    Ambil data sesuai halaman yang diminta.
+	if err := query.Limit(limit).Offset(offset).Find(&board).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return board, total, nil
+
 }
